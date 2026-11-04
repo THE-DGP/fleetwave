@@ -1,0 +1,80 @@
+# FleetWave fleet definition: a synthetic 10-cluster, 4-environment fleet for a
+# regulated multi-service banking platform. Every number here is a MODELLED ASSUMPTION;
+# each one is justified in docs/assumptions.md.
+#
+# Units: durations are working days (Mon-Fri, excluding bank holidays).
+#        min/likely/max are three-point estimates used for Monte Carlo sampling in Phase 3.
+
+name: demo-banking-fleet
+description: Synthetic fleet; no real organisation's data.
+
+calendar:
+  start_date: 2027-01-04          # first Monday after the festive change freeze lifts
+  horizon_working_days: 260       # ~1 year of working days available to the scheduler
+  bank_holidays:                  # England & Wales 2027
+    - 2027-03-26                  # Good Friday
+    - 2027-03-29                  # Easter Monday
+    - 2027-05-03                  # Early May bank holiday
+    - 2027-05-31                  # Spring bank holiday
+    - 2027-08-30                  # Summer bank holiday
+  prod_weekdays: [tue, wed, thu]  # no prod changes Mon (weekend backlog) or Fri (weekend cover)
+  cab_weekday: thu                # weekly change-approval board
+  month_end:                      # last 3 working days of each month: finance close
+    working_days: 3
+    envs: [prod]
+  payday:                         # salary processing peak around the 25th
+    day_of_month: 25
+    days_before: 1
+    days_after: 1
+    envs: [prod]
+  freezes:
+    - name: tax-year-end peak     # ISA season + tax year end: 2-week freeze
+      start: 2027-03-29
+      end: 2027-04-09
+      envs: [preprod, prod]
+
+capacity:
+  max_parallel_upgrades: 2        # platform team can run 2 upgrades at once
+  max_prod_per_week: 3
+  max_tier1_prod_per_day: 1       # never two tier-1 prod upgrades on the same day
+
+rework:
+  late_discovery_probability: 0.5 # share of latent blockers today's process finds late
+  discovery_env: preprod          # where late blockers surface (prod-like config and scale)
+  fix_days: {min: 1, likely: 2, max: 4}   # per blocker: diagnose, fix, review, redeploy
+
+baseline:
+  gated_envs: [test, preprod]     # all dev done before any test; all test before any preprod
+  parallel_streams: 2             # same team capacity the optimiser gets
+
+# ---------------------------------------------------------------- environment profiles
+# 'x-' keys are YAML anchors only; the loader ignores them. upgrade = control plane +
+# node pools + checks; test = manual regression / NFR testing after the upgrade.
+x-tier1: &tier1
+  dev:     {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 1}
+  test:    {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 1,    likely: 1.5, max: 3},   soak_days: 2}
+  preprod: {upgrade: {min: 0.5,  likely: 0.5, max: 1}, test: {min: 1,    likely: 1.5, max: 3},   soak_days: 3}
+  prod:    {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 2}
+x-tier2: &tier2
+  dev:     {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 1}
+  test:    {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.5,  likely: 1,   max: 2},   soak_days: 1}
+  preprod: {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.5,  likely: 1,   max: 2},   soak_days: 2}
+  prod:    {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 1}
+x-tier3: &tier3
+  dev:     {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 1}
+  test:    {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 1}
+  preprod: {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1.5}, soak_days: 1}
+  prod:    {upgrade: {min: 0.25, likely: 0.5, max: 1}, test: {min: 0.25, likely: 0.5, max: 1},   soak_days: 1}
+
+# ---------------------------------------------------------------- clusters
+clusters:
+  - {name: identity,        tier: 1, environments: *tier1, depends_on: [],                           latent_blockers: 2}
+  - {name: fraud-detection, tier: 2, environments: *tier2, depends_on: [],                           latent_blockers: 1}
+  - {name: payments,        tier: 1, environments: *tier1, depends_on: [identity, fraud-detection],  latent_blockers: 3}
+  - {name: mobile-banking,  tier: 1, environments: *tier1, depends_on: [identity],                   latent_blockers: 2}
+  - {name: online-banking,  tier: 1, environments: *tier1, depends_on: [identity],                   latent_blockers: 1}
+  - {name: cards,           tier: 1, environments: *tier1, depends_on: [identity, payments],         latent_blockers: 2}
+  - {name: savings,         tier: 2, environments: *tier2, depends_on: [identity],                   latent_blockers: 1}
+  - {name: mortgages,       tier: 2, environments: *tier2, depends_on: [identity],                   latent_blockers: 2}
+  - {name: lending,         tier: 3, environments: *tier3, depends_on: [identity],                   latent_blockers: 1}
+  - {name: data-platform,   tier: 3, environments: *tier3, depends_on: [],                           latent_blockers: 3}

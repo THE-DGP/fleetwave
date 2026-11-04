@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fleetwave"
+version = "0.1.0"
+description = "Kubernetes fleet upgrade readiness scanner and CP-SAT upgrade-wave scheduler."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Dev Patel" }]
+dependencies = [
+    "ortools>=9.10",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "plotly>=5.20",
+    "pandas>=2.1",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+scanner = ["kubernetes>=29.0"]
+dashboard = ["streamlit>=1.35"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5"]
+
+[project.scripts]
+fleetwave = "fleetwave.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fleetwave"]
+
+# ---------- ruff ----------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["reports"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I isort, UP pyupgrade, B bugbear, SIM simplify, RUF ruff-specific
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+# ---------- pytest / coverage ----------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.coverage.run]
+source = ["fleetwave"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

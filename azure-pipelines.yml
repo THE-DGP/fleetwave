@@ -1,0 +1,39 @@
+# Phase 0 pipeline: Lint -> Test. Scan / Schedule & Simulate / Publish stages arrive in Phase 5.
+trigger:
+  branches:
+    include: [main]
+
+pool:
+  vmImage: ubuntu-latest   # Microsoft-hosted. For a self-hosted agent use:  pool: { name: Default }
+
+variables:
+  PYTHON_VERSION: "3.11"
+
+stages:
+  - stage: Lint
+    jobs:
+      - job: ruff
+        steps:
+          - task: UsePythonVersion@0
+            inputs: { versionSpec: "$(PYTHON_VERSION)" }
+          - script: pip install ruff
+            displayName: Install ruff
+          - script: ruff check . && ruff format --check .
+            displayName: ruff
+
+  - stage: Test
+    dependsOn: Lint
+    jobs:
+      - job: pytest
+        steps:
+          - task: UsePythonVersion@0
+            inputs: { versionSpec: "$(PYTHON_VERSION)" }
+          - script: pip install -e ".[dev]"
+            displayName: Install package
+          - script: pytest --cov=fleetwave --cov-report=xml --junitxml=test-results.xml
+            displayName: pytest
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs: { testResultsFiles: test-results.xml }
+          - task: PublishCodeCoverageResults@2
+            inputs: { summaryFileLocation: coverage.xml }

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage*
+coverage.xml
+htmlcov/
+
+# Generated outputs (regenerate with the CLI; results.md is committed)
+reports/*
+!reports/.gitkeep
+
+# Kubernetes / local tooling
+*.kubeconfig
+kubeconfig*
+.kube/
+
+# Secrets
+.env
+*.pem
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
